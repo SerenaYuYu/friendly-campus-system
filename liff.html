@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>LINE助手綁定</title>
+<script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Microsoft JhengHei', sans-serif; background: #f0fdf4;
+         min-height: 100vh; display: flex; align-items: center;
+         justify-content: center; padding: 20px; }
+  .card { background: white; border-radius: 20px; padding: 36px 28px;
+          max-width: 340px; width: 100%; text-align: center;
+          box-shadow: 0 8px 30px rgba(0,0,0,.1); }
+  .icon { font-size: 56px; margin-bottom: 18px; }
+  h1 { font-size: 20px; font-weight: bold; color: #1f2937; margin-bottom: 10px; }
+  p  { font-size: 14px; color: #6b7280; line-height: 1.6; margin-bottom: 6px; }
+  .btn { display: block; width: 100%; padding: 14px; border: none;
+         border-radius: 50px; font-size: 16px; font-weight: bold;
+         cursor: pointer; margin-top: 20px; text-decoration: none; }
+  .btn-green { background: #06C755; color: white; }
+  .spin { display: inline-block; width: 36px; height: 36px;
+          border: 4px solid #06C755; border-top-color: transparent;
+          border-radius: 50%; animation: spin .8s linear infinite;
+          margin: 0 auto 18px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+<div class="card" id="card">
+  <div class="spin"></div>
+  <h1 id="title">綁定中，請稍候...</h1>
+  <p id="msg">正在確認您的 LINE 身份</p>
+</div>
+<script>
+var LIFF_ID = '<?= liffId ?>';
+var BOT_ID  = '<?= botId ?>';
+
+function setUI(icon, title, msg, addFriend) {
+  document.getElementById('card').innerHTML =
+    '<div class="icon">' + icon + '</div>' +
+    '<h1>' + title + '</h1>' +
+    '<p>' + msg + '</p>' +
+    (addFriend && BOT_ID
+      ? '<a href="https://line.me/R/ti/p/' + BOT_ID + '" class="btn btn-green">加入LINE好友以接收通知</a>'
+      : '');
+}
+
+function getToken() {
+  var p = new URLSearchParams(window.location.search);
+  var t = p.get('token');
+  if (!t) {
+    var state = p.get('liff.state') || '';
+    t = new URLSearchParams(state.replace(/^\?/, '')).get('token');
+  }
+  return t || '';
+}
+
+var token = getToken();
+
+if (!token) {
+  setUI('❌', '連結無效', '請從系統網頁重新點選「加入LINE助手」', false);
+} else {
+  liff.init({ liffId: LIFF_ID })
+    .then(function() {
+      if (!liff.isLoggedIn()) { liff.login({ redirectUri: window.location.href }); return; }
+      return liff.getProfile();
+    })
+    .then(function(profile) {
+      if (!profile) return;
+      document.getElementById('title').textContent = '確認身份中...';
+      google.script.run
+        .withSuccessHandler(function(r) {
+          if (r && r.success) {
+            var label  = r.role === 'admin' ? '管理員' : '老師';
+            var detail = r.role === 'admin'
+              ? '您將收到新的表揚申請通知，點連結即可前往審核。'
+              : '您將收到系統公告及相關通知。';
+            setUI('✅', '已綁定為「' + label + '」！', detail, true);
+          } else {
+            setUI('❌', '綁定失敗', (r && r.msg) || '請重新從系統操作', false);
+          }
+        })
+        .withFailureHandler(function() {
+          setUI('❌', '連線失敗', '請確認網路後重試', false);
+        })
+        .bindFromLiff(token, profile.userId, profile.displayName);
+    })
+    .catch(function() {
+      setUI('❌', 'LINE 初始化失敗', '請在 LINE 應用程式內開啟此頁面', false);
+    });
+}
+</script>
+</body>
+</html>
