@@ -56,6 +56,7 @@ function initSheets() {
     _ensureLineConfigRows();
   }
 
+  _createSheet(ss, '教師設定', ['Google帳號(Email)','姓名','角色(admin/teacher)','負責班級','啟用狀態'], '#ede9fe');
   _createSheet(ss, 'LINE綁定', ['LINE UserId','角色','綁定時間'], '#d1fae5');
 }
 
@@ -396,8 +397,39 @@ function getAdminData() {
     students:  _students(),
     areas:     _areas(),
     regs:      _regs(),
-    feedbacks: _feedbacks()
+    feedbacks: _feedbacks(),
+    teachers:  _teachers().map(function(t) {
+      return { email: t.email, name: t.name, role: t.role, myClass: t.myClass, active: t.enabled !== '停用' };
+    })
   };
+}
+
+function saveTeacher(t) {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('教師設定');
+  if (!sheet) return { success: false };
+  const enabled = t.active ? '啟用' : '停用';
+  const data = sheet.getDataRange().getValues();
+  for (let i = 1; i < data.length; i++) {
+    if (String(data[i][0]).toLowerCase() === t.email.toLowerCase()) {
+      sheet.getRange(i+1, 1, 1, 5).setValues([[t.email, t.name, t.role, t.myClass || '', enabled]]);
+      return { success: true, action: 'updated' };
+    }
+  }
+  sheet.appendRow([t.email, t.name, t.role, t.myClass || '', enabled]);
+  return { success: true, action: 'added' };
+}
+
+function deleteTeacher(email) {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('教師設定');
+  if (!sheet) return { success: false };
+  const data = sheet.getDataRange().getValues();
+  for (let i = 1; i < data.length; i++) {
+    if (String(data[i][0]).toLowerCase() === email.toLowerCase()) {
+      sheet.deleteRow(i + 1);
+      return { success: true };
+    }
+  }
+  return { success: false };
 }
 
 function addStudent(s) {
